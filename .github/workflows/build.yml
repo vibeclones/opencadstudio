@@ -1,0 +1,111 @@
+name: Build upstream releases
+
+on:
+  schedule:
+    - cron: "11 6 * * *"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "How many of the newest upstream releases to consider"
+        required: false
+        default: "3"
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency: build
+
+env:
+  UP: HakanSeven12/OpenCADStudio
+  APP: opencadstudio
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find releases we don't have yet
+        run: |
+          : > todo.txt
+          for tag in $(gh release list -R "$UP" --limit "${{ inputs.limit || '3' }}" --exclude-drafts --exclude-pre-releases --json tagName -q '.[].tagName'); do
+            [ -d "v${tag#v}" ] || echo "$tag" >> todo.txt
+          done
+          cat todo.txt
+          if [ -s todo.txt ]; then echo "NEED=true" >> "$GITHUB_ENV"; fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: env.NEED == 'true'
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install trunk
+        if: env.NEED == 'true'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk
+
+      - name: Build each new release
+        if: env.NEED == 'true'
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          # Treeless clone: full history (the build measures distance from the release tag) without the file blobs.
+          git clone --quiet --filter=blob:none "https://github.com/$UP.git" up
+          while read -r tag; do
+            ver="${tag#v}"
+            echo "::group::Build $tag"
+            git -C up checkout --quiet --force "tags/$tag"
+            # The post-build hook calls wasm-bindgen from PATH; it must match this release's Cargo.lock.
+            wb=$(sed -n '/name = "wasm-bindgen"$/{n;s/version = "\(.*\)"/\1/p;q;}' up/Cargo.lock)
+            echo "wasm-bindgen $wb"
+            curl -sSfL "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/$wb/wasm-bindgen-$wb-x86_64-unknown-linux-musl.tar.gz" | tar -xz -C "$HOME/.local/bin" --strip-components=1 "wasm-bindgen-$wb-x86_64-unknown-linux-musl/wasm-bindgen"
+            rm -rf out
+            note=""
+            build() { (cd up && trunk build --locked --release --public-url ./ --dist "$GITHUB_WORKSPACE/out" --html-output index.html web-app.html); }
+            if ! build; then
+              echo "::warning::first build of $tag failed; retrying with wasm-opt disabled"
+              sed -i 's|<link data-trunk rel="rust" data-bin="OpenCADStudio" />|<link data-trunk rel="rust" data-bin="OpenCADStudio" data-wasm-opt="0" />|' up/web-app.html
+              rm -rf out
+              note="Built with wasm-opt disabled (data-wasm-opt=\"0\"); no other changes."
+              build || { echo "::warning::build failed for $tag"; git -C up checkout --quiet --force .; continue; }
+            fi
+            git -C up checkout --quiet --force .
+            # Give each version its own service-worker cache name.
+            [ -f out/sw.js ] && sed -i "s/^const CACHE_VERSION = \"[^\"]*\";/const CACHE_VERSION = \"$ver\";/" out/sw.js
+            mkdir "v$ver"
+            cp -a out/. "v$ver/"
+            cp up/LICENSE* "v$ver/" 2>/dev/null || true
+            printf 'Built from %s at tag %s\nhttps://github.com/%s/tree/%s\n%s\n' "$UP" "$tag" "$UP" "$tag" "$note" > "v$ver/SOURCE.txt"
+            rm -rf out
+            echo "::endgroup::"
+          done < todo.txt
+          rm -rf up
+
+      - name: Update latest and versions.json
+        run: |
+          versions=$(find . -maxdepth 1 -type d -name 'v[0-9]*' -printf '%f\n' | sed 's/^v//' | sort -rV)
+          [ -n "$versions" ] || { echo "No versions built"; exit 0; }
+          latest=$(echo "$versions" | head -n1)
+          mkdir -p latest
+          printf '<!doctype html><meta charset="utf-8"><title>%s</title><meta http-equiv="refresh" content="0; url=../v%s/"><link rel="canonical" href="../v%s/"><a href="../v%s/">Open %s %s</a>\n' "$APP" "$latest" "$latest" "$latest" "$APP" "$latest" > latest/index.html
+          echo "$versions" | jq -R . | jq -s --arg latest "$latest" '{latest: $latest, versions: .}' > versions.json
+          cat versions.json
+
+      - name: Commit and request a Pages build
+        run: |
+          rm -f todo.txt
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing new"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Add upstream release builds"
+          git push
+          gh api -X POST "repos/${{ github.repository }}/pages/builds"
