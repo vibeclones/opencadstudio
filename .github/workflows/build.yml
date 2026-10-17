@@ -60,6 +60,8 @@ jobs:
             ver="${tag#v}"
             echo "::group::Build $tag"
             git -C up checkout --quiet --force "tags/$tag" || { echo "::warning::could not check out $tag, skipping"; continue; }
+            # Releases from before the project had a web app have nothing to build here.
+            if [ ! -f up/web-app.html ]; then echo "::warning::$tag has no web app (web-app.html), skipping"; git -C up checkout --quiet --force .; continue; fi
             # The post-build hook calls wasm-bindgen from PATH; it must match this release's Cargo.lock.
             wb=$(sed -n '/name = "wasm-bindgen"$/{n;s/version = "\(.*\)"/\1/p;q;}' up/Cargo.lock)
             echo "wasm-bindgen $wb"
@@ -70,7 +72,7 @@ jobs:
             build() { (cd up && trunk build --locked --release --public-url ./ --dist "$GITHUB_WORKSPACE/out" --html-output index.html web-app.html); }
             if ! build; then
               echo "::warning::first build of $tag failed; retrying with wasm-opt disabled"
-              sed -i 's|<link data-trunk rel="rust" data-bin="OpenCADStudio" />|<link data-trunk rel="rust" data-bin="OpenCADStudio" data-wasm-opt="0" />|' up/web-app.html
+              sed -i 's|<link data-trunk rel="rust" data-bin="OpenCADStudio" />|<link data-trunk rel="rust" data-bin="OpenCADStudio" data-wasm-opt="0" />|' up/web-app.html || true
               rm -rf out
               note="Built with wasm-opt disabled (data-wasm-opt=\"0\"); no other changes."
               build || { echo "::warning::build failed for $tag"; git -C up checkout --quiet --force .; continue; }
