@@ -59,11 +59,12 @@ jobs:
           while read -r tag; do
             ver="${tag#v}"
             echo "::group::Build $tag"
-            git -C up checkout --quiet --force "tags/$tag"
+            git -C up checkout --quiet --force "tags/$tag" || { echo "::warning::could not check out $tag, skipping"; continue; }
             # The post-build hook calls wasm-bindgen from PATH; it must match this release's Cargo.lock.
             wb=$(sed -n '/name = "wasm-bindgen"$/{n;s/version = "\(.*\)"/\1/p;q;}' up/Cargo.lock)
             echo "wasm-bindgen $wb"
-            curl -sSfL "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/$wb/wasm-bindgen-$wb-x86_64-unknown-linux-musl.tar.gz" | tar -xz -C "$HOME/.local/bin" --strip-components=1 "wasm-bindgen-$wb-x86_64-unknown-linux-musl/wasm-bindgen"
+            # An old release can name a wasm-bindgen version that is missing or hard to fetch; skip just that release.
+            if [ -z "$wb" ] || ! curl -sSfL "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/$wb/wasm-bindgen-$wb-x86_64-unknown-linux-musl.tar.gz" | tar -xz -C "$HOME/.local/bin" --strip-components=1 "wasm-bindgen-$wb-x86_64-unknown-linux-musl/wasm-bindgen"; then echo "::warning::could not install wasm-bindgen ($wb) for $tag, skipping"; git -C up checkout --quiet --force .; continue; fi
             rm -rf out
             note=""
             build() { (cd up && trunk build --locked --release --public-url ./ --dist "$GITHUB_WORKSPACE/out" --html-output index.html web-app.html); }
@@ -76,7 +77,7 @@ jobs:
             fi
             git -C up checkout --quiet --force .
             # Give each version its own service-worker cache name.
-            [ -f out/sw.js ] && sed -i "s/^const CACHE_VERSION = \"[^\"]*\";/const CACHE_VERSION = \"$ver\";/" out/sw.js
+            if [ -f out/sw.js ]; then sed -i "s/^const CACHE_VERSION = \"[^\"]*\";/const CACHE_VERSION = \"$ver\";/" out/sw.js; fi
             mkdir "v$ver"
             cp -a out/. "v$ver/"
             cp up/LICENSE* "v$ver/" 2>/dev/null || true
