@@ -86,5 +86,7 @@
   "0.1.5": "Left out to stay within our storage limit; we keep a spread of versions.",
   "0.1.4": "Left out to stay within our storage limit; we keep a spread of versions.",
   "0.1.2": "Left out to stay within our storage limit; we keep a spread of versions.",
-  "0.1.1": "Left out to stay within our storage limit; we keep a spread of versions."
+  "0.1.1": "Left out to stay within our storage limit; we keep a spread of versions.",
+  "0.9.8": "Dropped to stay within our storage limit.",
+  "2026.36": "Dropped to stay within our storage limit."
 }

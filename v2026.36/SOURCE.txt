@@ -1,3 +1,0 @@
-Built from HakanSeven12/OpenCADStudio at tag v2026.36
-https://github.com/HakanSeven12/OpenCADStudio/tree/v2026.36
-
