@@ -1,11 +1,13 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <link rel="manifest" href="app.webmanifest" />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, follow" />
     <meta name="theme-color" content="#1e1e1e" />
     <title>Open CAD Studio Web App</title>
+    <script id="openaec-analytics-loader" src="https://open-aec.com/shared/analytics.js?v=20261026" defer></script>
     <link rel="icon" href="./logo-45c33c4b340416d6.svg" integrity="sha384-vfZpA76CSyUk3p+O4z9crsXrWTLdI+vzcgZAsaI+pSKRNPDIJoPCZ/bkkYSkRBoo"/>
     <style>
       html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #1e1e1e; }
@@ -40,8 +42,8 @@
     </style>
     
 <script type="module">
-import init, * as bindings from './OpenCADStudio-3ecb8c06eef5f5db.js';
-const wasm = await init({ module_or_path: './OpenCADStudio-3ecb8c06eef5f5db_bg.wasm' });
+import init, * as bindings from './OpenCADStudio-433344b03fa621d7.js';
+const wasm = await init({ module_or_path: './OpenCADStudio-52c3b99cea496898_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -55,13 +57,39 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
     
     
     
-  <link rel="modulepreload" href="./OpenCADStudio-3ecb8c06eef5f5db.js" crossorigin="anonymous" integrity="sha384-pn9RmFXDbeLjMRRiYCKlwpIeit2ZPkk/JfUvh8MCRuE2dxkDJlWwi29CweS7S8s7"><link rel="modulepreload" href="./snippets/OpenCADStudio-8f726f96d7df82eb/web/clipboard.js" crossorigin="anonymous" integrity="sha384-Wut6cH3WOIv3yBNSaEH+LhCF12yFaz1r6WMxaZq0/Fb2NwdMgUXVtR2xdkSFp1yJ"><link rel="preload" href="./OpenCADStudio-3ecb8c06eef5f5db_bg.wasm" crossorigin="anonymous" integrity="sha384-i7wdwRPGFZCeTQWyKEmCvMB0NhbUW2fBkIM9Ftw+viJJDKbYJjSaIFuVpuZcy3Gi" as="fetch" type="application/wasm"></head>
+    
+    
+    
+    
+  <link rel="modulepreload" href="./OpenCADStudio-433344b03fa621d7.js" crossorigin="anonymous" integrity="sha384-EYcfG3p9L4D9jjBd6bbiiXfZzsSB89LtJjtwHKmxdvy1yGe9v/jqzy2l92Hth38s"><link rel="modulepreload" href="./snippets/OpenCADStudio-e070e3e413f700c0/web/clipboard.js" crossorigin="anonymous" integrity="sha384-Wut6cH3WOIv3yBNSaEH+LhCF12yFaz1r6WMxaZq0/Fb2NwdMgUXVtR2xdkSFp1yJ"><link rel="preload" href="./OpenCADStudio-52c3b99cea496898_bg.wasm" crossorigin="anonymous" integrity="sha384-WiRzqBfsIzB97eNzy5a6b25bpeaZVbAZFXFfpYh+UHR4HSzUXiA3MpxfymV9zR9L" as="fetch" type="application/wasm"></head>
   <body>
     <div id="loading">
       <div class="spinner"></div>
       <div class="title">Open <span>CAD</span> Studio</div>
       <div class="sub">Loading…</div>
     </div>
+    <script src="ocs-control.js" defer></script>
+    <script>
+      // Offline support: register the service worker. It is copied next to
+      // this page by Trunk (see the copy-file link in <head>), so the
+      // relative URL resolves to /app/sw.js and the registration scope is
+      // /app/ — the whole app. Registered immediately (not on load) so the
+      // worker starts capturing this visit's asset requests as early as
+      // possible. sw.js never reloads the page on update: a new worker
+      // waits until every tab on the old version has closed.
+      // A sandboxed iframe without allow-same-origin has an opaque origin:
+      // there even reading navigator.serviceWorker throws (#2257).
+      (() => {
+        if (self.origin === "null" || !("serviceWorker" in navigator)) return;
+        try {
+          navigator.serviceWorker.register("sw.js").catch(error => {
+            console.warn("service worker registration failed; offline support disabled:", error);
+          });
+        } catch (error) {
+          console.warn("service worker unavailable; offline support disabled:", error);
+        }
+      })();
+    </script>
     <script>
       (() => {
         const splash = document.getElementById("loading");
