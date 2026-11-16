@@ -89,5 +89,7 @@
   "0.1.1": "Left out to stay within our storage limit; we keep a spread of versions.",
   "0.9.8": "Dropped to stay within our storage limit.",
   "2026.36": "Dropped to stay within our storage limit.",
-  "2026.38": "Dropped to stay within our storage limit."
+  "2026.38": "Dropped to stay within our storage limit.",
+  "2026.46": "It could not be built, or the release has no browser version.",
+  "2026.39": "Dropped to stay within our storage limit."
 }
